@@ -5,6 +5,9 @@ import os
 from google import genai
 from dotenv import load_dotenv
 
+
+GENERATED_CODE_FILE_NAME = "generated-code-gemini.py"
+
 def generate_code(description):
     """
     This function generates code based on the description
@@ -13,10 +16,35 @@ def generate_code(description):
     client = genai.Client(api_key=gemini_api_key)
     #TODO: add roles and instructions to the gemini model and checks.
     #TODO: add system prompt to the gemini model.
-    return client.models.generate_content(
+    response = client.models.generate_content(
         model="gemini-2.5-flash-lite",
-        contents=description,
+        config=genai.types.GenerateContentConfig(
+            system_instruction="You are a helpful assistant that " \
+            + "generates python code based on the description. " \
+            + "You only output the code, no other text " \
+            + "or comments as no user will see this code. " \
+            + "Your output will be copied to a python file",
+            temperature=0.2,
+            response_mime_type="text/plain",
+        ),
+        contents=description
     )
+
+    return response
+
+
+
+def develop_program(description):
+    """
+    This function develops a python program based on the description
+    """
+    code = generate_code(description)
+
+    #write the code to a file
+    with open(GENERATED_CODE_FILE_NAME, "w") as f:
+        f.write(code.text.replace("```python", "").replace("```", ""))
+
+    return code
 
 
 
@@ -32,8 +60,8 @@ def main():
         print('Describe me which python program you want me to develop:')
         #await the description of the user and then send to gemini to generate the code
         description = input("Enter the description: ")
-        code = generate_code(description)
-        print(code.text)
+        develop_program(description)
+        
     elif choice == "2":
         print("not implemented yet")
     elif choice == "3":
