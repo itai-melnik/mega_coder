@@ -6,9 +6,10 @@ authors = ["itai-melnik <itaimelnik@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = ">=3.10,<4.0"
 openai = "^2.7.1"
 python-dotenv = ">=1.2.1"
+google-genai = "^1.49.0"
 
 
 [build-system]
