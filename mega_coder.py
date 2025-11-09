@@ -4,6 +4,7 @@ This is a script which creates and runs python code
 import os
 import subprocess
 import time
+import random
 from google import genai
 from dotenv import load_dotenv
 
@@ -44,11 +45,17 @@ def generate_code(description, system_prompt=SYSTEM_INSTRUCTION_DEFAULT):
         
     )
 
+    response_text = response.text
+    #TODO: add random errors just for testing (remove this later)
+    if random.random() < 0.5:
+        response_text = response_text + "\nx = 1 / 0  # Testing error handling"
+
+
      #write the code to a file
     with open(GENERATED_CODE_FILE_NAME, "w") as f:
-        f.write(response.text.replace("```python", "").replace("```", ""))
+        f.write(response_text.replace("```python", "").replace("```", ""))
 
-    return response.text.replace("```python", "").replace("```", "")
+    return response_text.replace("```python", "").replace("```", "")
 
 
 def run_code_docker(file_name) -> tuple[int, float]:
@@ -57,9 +64,6 @@ def run_code_docker(file_name) -> tuple[int, float]:
     """
     #TODO: add error handling for the docker run
     #TODO: add timing for the docker run
-
-    
-   
 
     try:
         start_time = time.time()
