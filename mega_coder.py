@@ -33,6 +33,30 @@ def generate_code(description):
 
     return response
 
+def run_code_docker(code):
+    """
+    This function runs the code using docker
+    """
+    #TODO: add error handling for the docker run
+    try:
+        result = subprocess.run(
+            ["docker", "run", "--rm", "-v", f"{os.getcwd()}:/app", 
+            "python:3.11", "python", f"/app/{GENERATED_CODE_FILE_NAME}"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False)
+    except subprocess.TimeoutExpired:
+        print("Docker run timed out")
+        return None
+    except subprocess.CalledProcessError as e:
+        print(f"Docker run failed: {e}")
+        return None
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        return None
+
+    return result
 
 
 def develop_program(description):
@@ -41,20 +65,35 @@ def develop_program(description):
     """
     code = generate_code(description)
 
+
+     # Extract text from response object into a regular string
+    code_text = code.text
+    
+    # TODO: add error to code just for testing 
+    code_text = code_text + "\nx = 1 / 0  # Testing error handling"
+
     #write the code to a file
     with open(GENERATED_CODE_FILE_NAME, "w") as f:
-        f.write(code.text.replace("```python", "").replace("```", ""))
+        f.write(code_text.replace("```python", "").replace("```", ""))
 
 
     #run the code using docker
-    #TODO: add error handling for the docker run
-    result = subprocess.run(
-            ["docker", "run", "--rm", "-v", f"{os.getcwd()}:/app", 
-            "python:3.11", "python", f"/app/{GENERATED_CODE_FILE_NAME}"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False)
+    result = run_code_docker(code)
+
+
+     # if errors in generated code, call gemini to fix the code and then run the code again up to 5 times
+    count = 0
+    while result.returncode != 0 and count < 5:
+        count += 1
+        print(f"Error in code. Attempting to fix... {count}/5")
+        print(result.stderr)
+        #call gemini to fix the code
+        fixed_code = generate_code(f"Fix the following code: {code.text}")
+        #write the fixed code to a file
+        with open(GENERATED_CODE_FILE_NAME, "w") as f:
+            f.write(fixed_code.text.replace("```python", "").replace("```", ""))
+        #run the code again
+        result = run_code_docker(fixed_code)
 
 
     print(result.stdout)
