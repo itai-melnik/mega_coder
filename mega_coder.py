@@ -12,23 +12,27 @@ from tqdm import tqdm
 
 
 
-GENERATED_CODE_FILE_NAME = "generated-code-gemini.py"
+GENERATED_CODE_FILE_NAME = "generated_code_gemini.py"
 
 SYSTEM_INSTRUCTION_DEFAULT = "You are a helpful assistant that " \
 + "generates python code based on the description. " \
 + "You only output the code, no other text. " \
-+ "add minimalcomments or descriptions but enough so that AI can understand the code and the logic. " \
-+ "Your output will be copied to a python file" \
++ "Add a module docstring at the top of the file. " \
++ "Add minimal comments or descriptions but enough so that AI can understand the code and the logic. " \
++ "Keep lines under 100 characters for PEP 8 compliance. " \
++ "Your output will be copied to a python file. " \
 + "Add Asserts to the generated code that check that the logic is correct. " \
 + "If asked to fix the code, fix it and return the correct code. "
 
 
 SYSTEM_INSTRUCTION_OPTIMIZE = "You are a helpful assistant that " \
 + "optimizes the input code based on the description. " \
-+ "You only output the code, no other text." \
-+ "add minimal comments or descriptions but enough so that AI can understand the code and the logic." \
-+ "Your output will be copied to a python file" \
-+ "do not remove the asserts or the test cases from the code. "
++ "You only output the code, no other text. " \
++ "Maintain the module docstring at the top of the file. " \
++ "Add minimal comments or descriptions but enough so that AI can understand the code and the logic. " \
++ "Keep lines under 100 characters for PEP 8 compliance. " \
++ "Your output will be copied to a python file. " \
++ "Do not remove the asserts or the test cases from the code. "
 
 def generate_code(description, system_prompt=SYSTEM_INSTRUCTION_DEFAULT):
     """
@@ -50,16 +54,17 @@ def generate_code(description, system_prompt=SYSTEM_INSTRUCTION_DEFAULT):
 
     response_text = response.text
     #TODO: add random errors just for testing (remove this later)
-    if random.random() < 0.5:
+    if random.random() < 0.1:
         response_text = response_text + "\nx = 1 / 0  # Testing error handling"
 
 
      #write the code to a file
-    with open(GENERATED_CODE_FILE_NAME, "w") as f:
-        f.write(response_text.replace("```python", "").replace("```", ""))
+    clean_code = response_text.replace("```python", "").replace("```", "").strip()
+    with open(GENERATED_CODE_FILE_NAME, "w", encoding="utf-8") as f:
+        f.write(clean_code + '\n')  # Ensure exactly one final newline for pylint
 
     print(Fore.GREEN + "✓ Code generated successfully!")
-    return response_text.replace("```python", "").replace("```", "")
+    return clean_code
 
 
 def run_code_docker(file_name) -> tuple[int, float]:
@@ -98,21 +103,21 @@ def run_code_docker(file_name) -> tuple[int, float]:
     return result, end_time - start_time
 
 
-def check_lint_errors(code):
+def check_lint_errors(file_path):
     """
-    This function fixes lint errors in the code
+    This function checks lint errors in the code file
     Returns the lint errors if any, otherwise returns None
     """
     print(Fore.CYAN + "🔍 Checking code with pylint...")
     result = subprocess.run(
-        ["pylint", code],
+        ["pylint", file_path],
         capture_output=True,
         text=True,
         check=False)
     if result.returncode != 0:
         #return the lint errors
         print(Fore.YELLOW + "⚠ Lint issues found")
-        return str(result.stderr)
+        return str(result.stdout)  # pylint outputs to stdout, not stderr
 
     print(Fore.GREEN + "✓ No lint errors!")
     return None
@@ -177,7 +182,7 @@ def develop_program(description):
     print(Fore.MAGENTA + "-"*50)
     
     max_lint_attempts = 3
-    lint_errors = check_lint_errors(f"{optimized_code}")
+    lint_errors = check_lint_errors(GENERATED_CODE_FILE_NAME)
     if lint_errors is not None:
         print(Fore.YELLOW + f"\n⚠ Lint issues detected. Attempting to fix (max {max_lint_attempts} attempts)...")
         with tqdm(total=max_lint_attempts, desc="Fixing lint issues", unit="attempt",
@@ -186,8 +191,8 @@ def develop_program(description):
             while lint_errors is not None and count < max_lint_attempts:
                 count += 1
                 pbar.set_description(f"Lint fix attempt {count}/{max_lint_attempts}")
-                code = generate_code(f"Fix the following lint errors in the code: {lint_errors} + {optimized_code}", SYSTEM_INSTRUCTION_DEFAULT)
-                lint_errors = check_lint_errors(f"{optimized_code}\n{code}")
+                optimized_code = generate_code(f"Fix the following lint errors in the code: {lint_errors}\n\nCode:\n{optimized_code}", SYSTEM_INSTRUCTION_DEFAULT)
+                lint_errors = check_lint_errors(GENERATED_CODE_FILE_NAME)
                 pbar.update(1)
 
     if lint_errors is not None:
@@ -199,7 +204,7 @@ def develop_program(description):
     print(Fore.GREEN + "🎉 Program Development Complete!")
     print(Fore.MAGENTA + "="*50 + "\n")
 
-    return code
+    return optimized_code
 
 
 def main():
