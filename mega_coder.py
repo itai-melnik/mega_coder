@@ -2,8 +2,10 @@
 This is a script which creates and runs python code
 """
 import os
+import subprocess
 from google import genai
 from dotenv import load_dotenv
+
 
 
 GENERATED_CODE_FILE_NAME = "generated-code-gemini.py"
@@ -15,7 +17,6 @@ def generate_code(description):
     gemini_api_key = os.getenv("GEMINI_API_KEY")
     client = genai.Client(api_key=gemini_api_key)
     #TODO: add roles and instructions to the gemini model and checks.
-    #TODO: add system prompt to the gemini model.
     response = client.models.generate_content(
         model="gemini-2.5-flash-lite",
         config=genai.types.GenerateContentConfig(
@@ -23,8 +24,8 @@ def generate_code(description):
             + "generates python code based on the description. " \
             + "You only output the code, no other text " \
             + "or comments as no user will see this code. " \
-            + "Your output will be copied to a python file",
-            temperature=0.2,
+            + "Your output will be copied to a python file" \
+            + "Add Asserts to the generated code that check that the logic is correct. ",
             response_mime_type="text/plain",
         ),
         contents=description
@@ -44,7 +45,22 @@ def develop_program(description):
     with open(GENERATED_CODE_FILE_NAME, "w") as f:
         f.write(code.text.replace("```python", "").replace("```", ""))
 
-    return code
+
+    #run the code using docker
+    #TODO: add error handling for the docker run
+    result = subprocess.run(
+            ["docker", "run", "--rm", "-v", f"{os.getcwd()}:/app", 
+            "python:3.11", "python", f"/app/{GENERATED_CODE_FILE_NAME}"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False)
+
+
+    print(result.stdout)
+    print(result.stderr)
+
+    return 
 
 
 
