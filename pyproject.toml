@@ -12,6 +12,7 @@ python-dotenv = ">=1.2.1"
 google-genai = "^1.49.0"
 colorama = "^0.4.6"
 tqdm = "^4.66.0"
+gitingest = "^0.3.1"
 
 
 [build-system]

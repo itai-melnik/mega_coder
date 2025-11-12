@@ -9,38 +9,95 @@ from google import genai
 from dotenv import load_dotenv
 from colorama import Fore, Style, init
 from tqdm import tqdm
+from gitingest import ingest
 
 
 
 GENERATED_CODE_FILE_NAME = "generated_code_gemini.py"
 
-SYSTEM_INSTRUCTION_DEFAULT = "You are a helpful assistant that " \
-+ "generates python code based on the description. " \
-+ "You only output the code, no other text. " \
-+ "Add a module docstring at the top of the file. " \
-+ "Add minimal comments or descriptions but enough so that AI can understand the code and the logic. " \
-+ "Keep lines under 100 characters for PEP 8 compliance. " \
-+ "Your output will be copied to a python file. " \
-+ "Add Asserts to the generated code that check that the logic is correct. " \
-+ "If asked to fix the code, fix it and return the correct code. "
+SYSTEM_INSTRUCTION_DEFAULT = (
+    "You are an expert Python developer that generates production-ready code. "
+    "Follow these requirements strictly:\n\n"
+    "CODE STRUCTURE:\n"
+    "- Output ONLY Python code, no explanatory text or markdown\n"
+    "- Add a comprehensive module docstring at the top\n"
+    "- Use type hints for all functions (PEP 484)\n"
+    "- Keep lines under 100 characters (PEP 8)\n\n"
+    "QUALITY & SAFETY:\n"
+    "- Add proper error handling with try-except blocks where appropriate\n"
+    "- Validate all inputs and handle edge cases\n"
+    "- Use meaningful, descriptive variable and function names\n"
+    "- Add docstrings for all functions (parameters, returns, raises)\n"
+    "- Avoid hardcoded values; use constants or configuration\n"
+    "- Follow security best practices (no SQL injection, XSS, etc.)\n"
+    "- Implement defensive programming principles\n\n"
+    "TESTING & VERIFICATION:\n"
+    "- Add comprehensive assert statements to verify correctness\n"
+    "- Include test cases that cover normal and edge cases\n"
+    "- Test for boundary conditions and invalid inputs\n\n"
+    "DOCUMENTATION:\n"
+    "- Add clear, concise comments for complex logic\n"
+    "- Explain 'why' rather than 'what' in comments\n"
+    "- Document assumptions and limitations\n\n"
+    "If asked to fix code, analyze the issue thoroughly and return corrected code."
+)
 
 
-SYSTEM_INSTRUCTION_OPTIMIZE = "You are a helpful assistant that " \
-+ "optimizes the input code based on the description. " \
-+ "You only output the code, no other text. " \
-+ "Maintain the module docstring at the top of the file. " \
-+ "Add minimal comments or descriptions but enough so that AI can understand the code and the logic. " \
-+ "Keep lines under 100 characters for PEP 8 compliance. " \
-+ "Your output will be copied to a python file. " \
-+ "Do not remove the asserts or the test cases from the code. "
+SYSTEM_INSTRUCTION_OPTIMIZE = (
+    "You are an expert Python optimization specialist. "
+    "Follow these requirements strictly:\n\n"
+    "OPTIMIZATION GOALS:\n"
+    "- Output ONLY optimized Python code, no explanatory text\n"
+    "- Improve time complexity where possible (O(n²) → O(n log n) → O(n))\n"
+    "- Reduce space complexity and memory usage\n"
+    "- Use efficient data structures (sets, dicts, deques where appropriate)\n"
+    "- Implement caching/memoization for repeated calculations\n"
+    "- Minimize redundant operations and loops\n"
+    "- Use list comprehensions and generators where beneficial\n"
+    "- Leverage built-in functions and standard library\n\n"
+    "CODE QUALITY:\n"
+    "- Maintain all type hints and docstrings from original code\n"
+    "- Keep lines under 100 characters (PEP 8)\n"
+    "- Preserve all functionality and error handling\n"
+    "- Do NOT remove asserts or test cases\n"
+    "- Maintain the module docstring\n"
+    "- Keep code readable; avoid over-optimization that harms clarity\n\n"
+    "PERFORMANCE:\n"
+    "- Profile-worthy optimizations only (no micro-optimizations)\n"
+    "- Consider algorithmic improvements first\n"
+    "- Use appropriate algorithms for the problem scale\n"
+    "- Add comments explaining optimization techniques used"
+)
+
+SYSTEM_INSTRUCTION_FIX_GITHUB_REPOSITORY = (
+    "You are an expert code reviewer and software architect. "
+    "Analyze the provided GitHub repository and respond based on the user's request.\n\n"
+    "OUTPUT FORMAT:\n"
+    "- Provide a clear, structured explanation\n"
+    "- Use markdown formatting for readability\n"
+    "- Include code examples where relevant\n\n"
+    "ANALYSIS APPROACH:\n"
+    "- Identify issues, bugs, or areas for improvement\n"
+    "- Explain the root cause of problems\n"
+    "- Suggest specific, actionable fixes\n"
+    "- Consider architecture, design patterns, and best practices\n"
+    "- Address security vulnerabilities if present\n"
+    "- Comment on code quality and maintainability\n"
+    "- Suggest refactoring opportunities\n\n"
+    "Be thorough, precise, and provide production-ready recommendations."
+) 
+
+
+load_dotenv()
+gemini_api_key = os.getenv("GEMINI_API_KEY")
+client = genai.Client(api_key=gemini_api_key)
+
 
 def generate_code(description, system_prompt=SYSTEM_INSTRUCTION_DEFAULT):
     """
     This function generates code based on the description
     """
     print(Fore.CYAN + "🤖 Generating code with Gemini AI...")
-    gemini_api_key = os.getenv("GEMINI_API_KEY")
-    client = genai.Client(api_key=gemini_api_key)
     #TODO: add roles and instructions to the gemini model and checks.
     response = client.models.generate_content(
         model="gemini-2.5-flash-lite",
@@ -207,6 +264,43 @@ def develop_program(description):
     return optimized_code
 
 
+
+def fix_github_repository(repository_url):
+    """
+    This function fixes a github repository based on the description
+    """
+    print(Fore.CYAN + 'Tell me what you want me to fix/change/explain in that repository')
+    description = input(Fore.WHITE + "Description: ")
+
+    summary, tree, content = ingest(repository_url)
+
+    #TODO: add character limits or regex to the contents
+    result = client.models.generate_content(
+        model="gemini-2.5-pro",
+        config=genai.types.GenerateContentConfig(
+            system_instruction=SYSTEM_INSTRUCTION_FIX_GITHUB_REPOSITORY,
+            response_mime_type="text/plain",
+        ),
+        contents=f"Summary: {summary}\nTree: {tree}\nContent: {content}\nDescription: {description}"
+    )
+
+    print(Fore.GREEN + result.text)
+
+    return 
+
+
+
+
+def give_coding_tips():
+    """
+    This function gives coding tips based on screeenshot of user's screen
+    """
+    
+
+   
+
+    pass
+
 def main():
     """
     This is the main function which creates and runs python code
@@ -224,18 +318,20 @@ def main():
     print(Fore.CYAN + "\n" + "-"*60)
     
     choice = input(Fore.WHITE + "Enter your choice (1-3): ")
-    
+   
     if choice == "1":
         #ask the user for the program they want to develop
         print(Fore.CYAN + '\n💭 Describe the python program you want me to develop:')
         #await the description of the user and then send to gemini to generate the code
         description = input(Fore.WHITE + "Description: ")
         develop_program(description)
-        
+
     elif choice == "2":
-        print(Fore.YELLOW + "\n⚠ Not implemented yet")
+        print(Fore.CYAN + '\n💭 Give me the full url of a public github repository:')
+        repository_url = input(Fore.WHITE + "Repository URL: ")
+        fix_github_repository(repository_url)
     elif choice == "3":
-        print(Fore.YELLOW + "\n⚠ Not implemented yet")
+        give_coding_tips()
     else:
         print(Fore.RED + "\n✗ Invalid choice. Please try again.")
 
@@ -243,5 +339,4 @@ def main():
 
 
 if __name__ == "__main__":
-    load_dotenv()
     main()
