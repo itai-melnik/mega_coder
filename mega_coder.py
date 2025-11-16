@@ -97,7 +97,7 @@ SYSTEM_INSTRUCTION_FIX_GITHUB_REPOSITORY = (
 
 load_dotenv()
 gemini_api_key = os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=gemini_api_key)
+gemini_client = genai.Client(api_key=gemini_api_key)
 
 
 def generate_code(description, system_prompt=SYSTEM_INSTRUCTION_DEFAULT):
@@ -106,7 +106,7 @@ def generate_code(description, system_prompt=SYSTEM_INSTRUCTION_DEFAULT):
     """
     print(Fore.CYAN + "🤖 Generating code with Gemini AI...")
     #TODO: add roles and instructions to the gemini model and checks.
-    response = client.models.generate_content(
+    response = gemini_client.models.generate_content(
         model="gemini-2.5-flash-lite",
         config=genai.types.GenerateContentConfig(
             system_instruction=system_prompt,
@@ -282,7 +282,7 @@ def fix_github_repository(repository_url):
     summary, tree, content = ingest(repository_url)
 
     #TODO: add character limits or regex to the contents
-    result = client.models.generate_content(
+    result = gemini_client.models.generate_content(
         model="gemini-2.5-pro",
         config=genai.types.GenerateContentConfig(
             system_instruction=SYSTEM_INSTRUCTION_FIX_GITHUB_REPOSITORY,
@@ -313,7 +313,7 @@ def give_coding_tips():
         print(Fore.RED + "✗ Error: OPENAI_API_KEY not found in environment variables")
         return
     
-    client = OpenAI(api_key=openai_api_key)
+    openai_client = OpenAI(api_key=openai_api_key)
     
     # Initialize RapidOCR
     ocr_engine = RapidOCR()
@@ -327,16 +327,33 @@ def give_coding_tips():
         with mss() as sct:
             # Get the primary monitor
             monitor = sct.monitors[1]
+
+                    
+            # Define a region that excludes edges 
+            # This captures the center 70% of the screen
+            margin_horizontal = int(monitor['width'] * 0.18)  # 18% margin each side
+            margin_vertical = int(monitor['height'] * 0.10)   # 10% margin top/bottom
+
+            capture_region = {
+                'left': monitor['left'] + margin_horizontal,
+                'top': monitor['top'] + margin_vertical,
+                'width': monitor['width'] - (2 * margin_horizontal),
+                'height': monitor['height'] - (2 * margin_vertical),
+            }
+
             
             while True:
                 try:
                     # Capture screenshot
-                    screenshot = sct.grab(monitor)
+                    screenshot = sct.grab(capture_region)
                     
                     # Convert screenshot to format suitable for OCR
                     # mss returns a ScreenShot object, convert to PIL Image format
                     img = Image.frombytes('RGB', screenshot.size, screenshot.rgb)
                     img_array = np.array(img)
+
+                    img.show()
+                    break
                     
                     # Perform OCR
                     result, _ = ocr_engine(img_array)
@@ -360,7 +377,7 @@ def give_coding_tips():
                             
                             try:
                                 # Send to GPT-5-nano for analysis
-                                response = client.responses.create(
+                                response = openai_client.responses.create(
                                     model="gpt-5-nano",
                                     input=f"Analyze the following code and provide tips to improve it:\n\n{current_text}"
                                 )
