@@ -10,6 +10,9 @@ from dotenv import load_dotenv
 from colorama import Fore, Style, init
 from tqdm import tqdm
 from gitingest import ingest
+from mss import mss
+from rapidocr_onnxruntime import RapidOCR
+
 
 
 
@@ -295,6 +298,17 @@ def give_coding_tips():
     """
     This function gives coding tips based on screeenshot of user's screen
     """
+    print(Fore.CYAN + "Perfect. Show me your screen and I will be giving you tips on how to improve the code I see")
+
+    #initiate mss
+    with mss() as sct:
+        #get the screenshot
+        screenshot = sct.shot()
+        #ocr the screenshot
+        ocr = RapidOCR(screenshot)
+        #get the text from the screenshot
+        text = ocr.text
+        #
     
 
    
