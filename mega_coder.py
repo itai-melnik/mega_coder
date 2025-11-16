@@ -5,6 +5,7 @@ import os
 import subprocess
 import time
 import random
+import numpy as np
 from google import genai
 from dotenv import load_dotenv
 from colorama import Fore, Style, init
@@ -12,6 +13,9 @@ from tqdm import tqdm
 from gitingest import ingest
 from mss import mss
 from rapidocr_onnxruntime import RapidOCR
+from openai import OpenAI
+from PIL import Image
+from code_detector import is_code
 
 
 
@@ -296,24 +300,100 @@ def fix_github_repository(repository_url):
 
 def give_coding_tips():
     """
-    This function gives coding tips based on screeenshot of user's screen
+    This function gives coding tips based on screenshot of user's screen.
+    Captures screen every second, uses OCR to extract text, detects code,
+    and sends it to GPT-5-nano for analysis and tips.
     """
     print(Fore.CYAN + "Perfect. Show me your screen and I will be giving you tips on how to improve the code I see")
+    print(Fore.YELLOW + "\n📸 Starting screen capture (Press Ctrl+C to stop)...")
+    
+    # Initialize OpenAI client
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if not openai_api_key:
+        print(Fore.RED + "✗ Error: OPENAI_API_KEY not found in environment variables")
+        return
+    
+    client = OpenAI(api_key=openai_api_key)
+    
+    # Initialize RapidOCR
+    ocr_engine = RapidOCR()
+    
+    # Store previous OCR text for comparison
+    previous_text = ""
+    
+    print(Fore.GREEN + "✓ Ready! Monitoring your screen for code...\n")
+    
+    try:
+        with mss() as sct:
+            # Get the primary monitor
+            monitor = sct.monitors[1]
+            
+            while True:
+                try:
+                    # Capture screenshot
+                    screenshot = sct.grab(monitor)
+                    
+                    # Convert screenshot to format suitable for OCR
+                    # mss returns a ScreenShot object, convert to PIL Image format
+                    img = Image.frombytes('RGB', screenshot.size, screenshot.rgb)
+                    img_array = np.array(img)
+                    
+                    # Perform OCR
+                    result, _ = ocr_engine(img_array)
+                    
+                    # Extract text from OCR result
+                    if result:
+                        # RapidOCR returns list of [bbox, text, confidence]
+                        current_text = '\n'.join([item[1] for item in result])
+                    else:
+                        current_text = ""
 
-    #initiate mss
-    with mss() as sct:
-        #get the screenshot
-        screenshot = sct.shot()
-        #ocr the screenshot
-        ocr = RapidOCR(screenshot)
-        #get the text from the screenshot
-        text = ocr.text
-        #
+
+                    
+                    # Check if text is different from previous frame and not empty
+                    if current_text and current_text != previous_text:
+                        # Check if the text appears to be code
+                        if is_code(current_text):
+                            print(Fore.CYAN + "\n" + "="*60)
+                            print(Fore.CYAN + "🔍 Code detected! Analyzing...")
+                            print(Fore.CYAN + "="*60 + "\n")
+                            
+                            try:
+                                # Send to GPT-5-nano for analysis
+                                response = client.responses.create(
+                                    model="gpt-5-nano",
+                                    input=f"Analyze the following code and provide tips to improve it:\n\n{current_text}"
+                                )
+                                
+                                # Print the response
+                                print(Fore.GREEN + "💡 Coding Tips:")
+                                print(Fore.WHITE + response.output_text)
+                                print(Fore.CYAN + "\n" + "="*60 + "\n")
+                                
+                            except Exception as api_error:
+                                print(Fore.RED + f"✗ API Error: {api_error}")
+                        
+                        # Update previous text
+                        previous_text = current_text
+                    
+                except Exception as capture_error:
+                    print(Fore.RED + f"✗ Capture Error: {capture_error}")
+                
+                # Wait 1 second before next capture
+                time.sleep(1)
+                
+    except KeyboardInterrupt:
+        print(Fore.YELLOW + "\n\n⚠ Screen monitoring stopped by user")
+        print(Fore.GREEN + "✓ Goodbye!")
+    except Exception as e:
+        print(Fore.RED + f"\n✗ Unexpected error: {e}")
+           
+
     
 
    
 
-    pass
+  
 
 def main():
     """
