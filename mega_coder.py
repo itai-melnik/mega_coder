@@ -272,16 +272,21 @@ def develop_program(description):
 
 
 
-def fix_github_repository(repository_url):
+def analyze_github_repository(repository_url):
     """
-    This function fixes a github repository based on the description
+    This function analyzes a github repository based on the description
     """
     print(Fore.CYAN + 'Tell me what you want me to fix/change/explain in that repository')
     description = input(Fore.WHITE + "Description: ")
 
     summary, tree, content = ingest(repository_url)
 
-    #TODO: add character limits or regex to the contents
+    MAX_CONTENT_LENGTH = 100000 
+
+    if len(content) > MAX_CONTENT_LENGTH:
+        print(Fore.YELLOW + f"⚠ Content truncated ({len(content)} → {MAX_CONTENT_LENGTH} chars)")
+        content = content[:MAX_CONTENT_LENGTH] + "\n\n[... content truncated ...]"
+
     result = gemini_client.models.generate_content(
         model="gemini-2.5-pro",
         config=genai.types.GenerateContentConfig(
@@ -351,10 +356,7 @@ def give_coding_tips():
                     # mss returns a ScreenShot object, convert to PIL Image format
                     img = Image.frombytes('RGB', screenshot.size, screenshot.rgb)
                     img_array = np.array(img)
-
-                    img.show()
-                    break
-                    
+ 
                     # Perform OCR
                     result, _ = ocr_engine(img_array)
                     
@@ -440,7 +442,7 @@ def main():
     elif choice == "2":
         print(Fore.CYAN + '\n💭 Give me the full url of a public github repository:')
         repository_url = input(Fore.WHITE + "Repository URL: ")
-        fix_github_repository(repository_url)
+        analyze_github_repository(repository_url)
     elif choice == "3":
         give_coding_tips()
     else:
