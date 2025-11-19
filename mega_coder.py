@@ -4,7 +4,6 @@ This is a script which creates and runs python code
 import os
 import subprocess
 import time
-import random
 import numpy as np
 from google import genai
 from dotenv import load_dotenv
@@ -105,7 +104,7 @@ def generate_code(description, system_prompt=SYSTEM_INSTRUCTION_DEFAULT):
     This function generates code based on the description
     """
     print(Fore.CYAN + "🤖 Generating code with Gemini AI...")
-    #TODO: add roles and instructions to the gemini model and checks.
+  
     response = gemini_client.models.generate_content(
         model="gemini-2.5-flash-lite",
         config=genai.types.GenerateContentConfig(
@@ -116,14 +115,9 @@ def generate_code(description, system_prompt=SYSTEM_INSTRUCTION_DEFAULT):
         
     )
 
-    response_text = response.text
-    #TODO: add random errors just for testing (remove this later)
-    if random.random() < 0.1:
-        response_text = response_text + "\nx = 1 / 0  # Testing error handling"
-
 
      #write the code to a file
-    clean_code = response_text.replace("```python", "").replace("```", "").strip()
+    clean_code = response.text.replace("```python", "").replace("```", "").strip()
     with open(GENERATED_CODE_FILE_NAME, "w", encoding="utf-8") as f:
         f.write(clean_code + '\n')  # Ensure exactly one final newline for pylint
 
@@ -169,19 +163,19 @@ def run_code_docker(file_name) -> tuple[int, float]:
 
 def check_lint_errors(file_path):
     """
-    This function checks lint errors in the code file
+    This function checks lint errors in the code file using flake8
     Returns the lint errors if any, otherwise returns None
     """
-    print(Fore.CYAN + "🔍 Checking code with pylint...")
+    print(Fore.CYAN + "🔍 Checking code with flake8...")
     result = subprocess.run(
-        ["pylint", file_path],
+        ["flake8", file_path, "--max-line-length=100"],
         capture_output=True,
         text=True,
         check=False)
     if result.returncode != 0:
-        #return the lint errors
+        # return the lint errors
         print(Fore.YELLOW + "⚠ Lint issues found")
-        return str(result.stdout)  # pylint outputs to stdout, not stderr
+        return str(result.stdout)
 
     print(Fore.GREEN + "✓ No lint errors!")
     return None

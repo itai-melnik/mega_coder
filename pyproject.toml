@@ -19,6 +19,11 @@ pillow = "^10.0.0"
 numpy = "^1.24.0"
 
 
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.0.1"
+pylint = ">=3.0.0"
+flake8 = "^7.3.0"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
