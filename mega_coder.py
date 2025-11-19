@@ -208,8 +208,9 @@ def develop_program(description):
             while result.returncode != 0 and count < max_fix_attempts:
                 count += 1
                 pbar.set_description(f"Fix attempt {count}/{max_fix_attempts}")
-                #generate new code
-                code = generate_code(f"Fix the following code: {code}", SYSTEM_INSTRUCTION_DEFAULT)
+                #generate new code with error context
+                error_info = f"\nError Output:\n{result.stderr}\n\nStandard Output:\n{result.stdout}" if result.stderr or result.stdout else ""
+                code = generate_code(f"Fix the following code: {code}{error_info}", SYSTEM_INSTRUCTION_DEFAULT)
                 #run the code again
                 result, execution_time = run_code_docker(GENERATED_CODE_FILE_NAME)
                 pbar.update(1)
@@ -281,15 +282,19 @@ def analyze_github_repository(repository_url):
         print(Fore.YELLOW + f"⚠ Content truncated ({len(content)} → {MAX_CONTENT_LENGTH} chars)")
         content = content[:MAX_CONTENT_LENGTH] + "\n\n[... content truncated ...]"
 
-    result = gemini_client.models.generate_content(
-        model="gemini-2.5-pro",
-        config=genai.types.GenerateContentConfig(
-            system_instruction=SYSTEM_INSTRUCTION_FIX_GITHUB_REPOSITORY,
-            response_mime_type="text/plain",
-        ),
-        contents=f"Summary: {summary}\nTree: {tree}\nContent: {content}\nDescription: {description}"
-    )
+    print(Fore.CYAN + "🔄 Analyzing repository with Gemini...")
+    with tqdm(total=1, desc="Waiting for response", bar_format='{desc}', ncols=50):
+        result = gemini_client.models.generate_content(
+            model="gemini-2.5-pro",
+            config=genai.types.GenerateContentConfig(
+                system_instruction=SYSTEM_INSTRUCTION_FIX_GITHUB_REPOSITORY,
+                response_mime_type="text/plain",
+                max_output_tokens=1024,  # Limit output for faster response
+            ),
+            contents=f"Summary: {summary}\nTree: {tree}\nContent: {content}\nDescription: {description}"
+        )
 
+    print(Fore.GREEN + "✓ Analysis complete!\n")
     print(Fore.GREEN + result.text)
 
     return 
@@ -375,7 +380,8 @@ def give_coding_tips():
                                 # Send to GPT-5-nano for analysis
                                 response = openai_client.responses.create(
                                     model="gpt-5-nano",
-                                    input=f"Analyze the following code and provide tips to improve it:\n\n{current_text}"
+                                    input=f"Analyze the following code and provide tips to improve it. Keep your response concise (max 3-4 key tips):\n\n{current_text}",
+                                    max_output_tokens=512  # Limit output for faster response
                                 )
                                 
                                 # Print the response
