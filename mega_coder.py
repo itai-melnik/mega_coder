@@ -295,7 +295,14 @@ def analyze_github_repository(repository_url):
         )
 
     print(Fore.GREEN + "✓ Analysis complete!\n")
-    print(Fore.GREEN + result.text)
+    
+    # Check if result has text content
+    if result and result.text:
+        print(Fore.GREEN + result.text)
+    else:
+        print(Fore.RED + "✗ No response received from Gemini. The model may have been blocked or returned empty content.")
+        if hasattr(result, 'prompt_feedback'):
+            print(Fore.YELLOW + f"Feedback: {result.prompt_feedback}")
 
     return 
 
