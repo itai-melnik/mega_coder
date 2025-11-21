@@ -4,7 +4,9 @@ This is a script which creates and runs python code
 import os
 import subprocess
 import time
+import logging
 import numpy as np
+from difflib import SequenceMatcher
 from google import genai
 from dotenv import load_dotenv
 from colorama import Fore, Style, init
@@ -15,6 +17,13 @@ from rapidocr_onnxruntime import RapidOCR
 from openai import OpenAI
 from PIL import Image
 from code_detector import is_code
+
+# Suppress verbose logging from libraries
+logging.getLogger('gitingest').setLevel(logging.WARNING)
+logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger('httpcore').setLevel(logging.WARNING)
+logging.getLogger('urllib3').setLevel(logging.WARNING)
+logging.getLogger('google').setLevel(logging.WARNING)
 
 
 
@@ -289,12 +298,13 @@ def analyze_github_repository(repository_url):
             config=genai.types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION_FIX_GITHUB_REPOSITORY,
                 response_mime_type="text/plain",
-                max_output_tokens=1024,  # Limit output for faster response
+                max_output_tokens=8000,  # Increased to allow for ~2000 thinking + ~6000 output
             ),
             contents=f"Summary: {summary}\nTree: {tree}\nContent: {content}\nDescription: {description}"
         )
 
     print(Fore.GREEN + "✓ Analysis complete!\n")
+    print(result)
     
     # Check if result has text content
     if result and result.text:
@@ -307,6 +317,13 @@ def analyze_github_repository(repository_url):
     return 
 
 
+
+def text_similarity(text1: str, text2: str) -> float:
+    """
+    Calculate similarity ratio between two text strings using SequenceMatcher.
+    Returns a float between 0.0 (completely different) and 1.0 (identical).
+    """
+    return SequenceMatcher(None, text1, text2).ratio()
 
 
 def give_coding_tips():
@@ -375,8 +392,13 @@ def give_coding_tips():
 
 
                     
-                    # Check if text is different from previous frame and not empty
-                    if current_text and current_text != previous_text:
+                    # Check if text is different enough from previous frame (< 80% similar)
+                    SIMILARITY_THRESHOLD = 0.80
+                    is_different = (current_text and 
+                                   (not previous_text or 
+                                    text_similarity(current_text, previous_text) < SIMILARITY_THRESHOLD))
+                    
+                    if is_different:
                         # Check if the text appears to be code
                         if is_code(current_text):
                             print(Fore.CYAN + "\n" + "="*60)
@@ -385,12 +407,14 @@ def give_coding_tips():
                             
                             try:
                                 # Send to GPT-5-nano for analysis
+                                print(Fore.CYAN + "🔍 Analyzing code...")
                                 response = openai_client.responses.create(
-                                    model="gpt-5-nano",
-                                    input=f"Analyze the following code and provide tips to improve it. Keep your response concise (max 3-4 key tips):\n\n{current_text}",
-                                    max_output_tokens=512  # Limit output for faster response
-                                )
-                                
+                                                            model="gpt-5-nano",
+                                                            input=(
+                                                                f"Analyze the following code and provide 3 concise improvement tips:\n\n"
+                                                                f"{current_text}"),
+                                                            reasoning={"effort": "low"}
+                                                        )
                                 # Print the response
                                 print(Fore.GREEN + "💡 Coding Tips:")
                                 print(Fore.WHITE + response.output_text)
@@ -401,6 +425,10 @@ def give_coding_tips():
                         
                         # Update previous text
                         previous_text = current_text
+                    elif current_text and previous_text:
+                        # Text is too similar to previous frame
+                        similarity_pct = text_similarity(current_text, previous_text) * 100
+                        print(Fore.YELLOW + f"⏭ Skipping - text too similar to previous frame ({similarity_pct:.1f}% match)", end='\r')
                     
                 except Exception as capture_error:
                     print(Fore.RED + f"✗ Capture Error: {capture_error}")
