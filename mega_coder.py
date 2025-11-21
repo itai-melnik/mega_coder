@@ -17,13 +17,21 @@ from rapidocr_onnxruntime import RapidOCR
 from openai import OpenAI
 from PIL import Image
 from code_detector import is_code
+from loguru import logger as loguru_logger
 
 # Suppress verbose logging from libraries
-logging.getLogger('gitingest').setLevel(logging.WARNING)
-logging.getLogger('httpx').setLevel(logging.WARNING)
-logging.getLogger('httpcore').setLevel(logging.WARNING)
-logging.getLogger('urllib3').setLevel(logging.WARNING)
-logging.getLogger('google').setLevel(logging.WARNING)
+logging.basicConfig(level=logging.ERROR)  # Set root logger to ERROR
+logging.getLogger('gitingest').setLevel(logging.ERROR)
+logging.getLogger('gitingest').propagate = False
+logging.getLogger('httpx').setLevel(logging.ERROR)
+logging.getLogger('httpcore').setLevel(logging.ERROR)
+logging.getLogger('urllib3').setLevel(logging.ERROR)
+logging.getLogger('google').setLevel(logging.ERROR)
+logging.getLogger('google.genai').setLevel(logging.ERROR)
+# Disable all loggers by default
+logging.disable(logging.INFO)
+# Disable Loguru logs coming from gitingest to keep CLI output clean
+loguru_logger.disable("gitingest")
 
 
 
@@ -304,7 +312,6 @@ def analyze_github_repository(repository_url):
         )
 
     print(Fore.GREEN + "✓ Analysis complete!\n")
-    print(result)
     
     # Check if result has text content
     if result and result.text:
